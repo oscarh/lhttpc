@@ -24,6 +24,9 @@
 %%% ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %%% ----------------------------------------------------------------------------
 
+%% In R13B bool() is now called boolean()
+-type boolean() :: bool().
+
 -type header() :: {string() | atom(), string()}.
 -type headers() :: [header()].
 
@@ -37,6 +40,7 @@
         {proxy_auth, {string(),string()}} |
         {proxy, string()} |
         {proxy_port, integer()} |
+        {keepalive, boolean()} |
         {no_proxy, [string()]}.
 
 -type options() :: [option()].
@@ -47,5 +51,3 @@
 
 -type window_size() :: non_neg_integer() | infinity.
 
-%% In R13B bool() is now called boolean()
--type boolean() :: bool().

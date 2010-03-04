@@ -558,6 +558,8 @@ verify_options([{proxy_port, Port} | Options], Errors)
 verify_options([{no_proxy, AddrList} | Options], Errors) 
   when is_list(AddrList) ->
     verify_options(Options, Errors);
+verify_options([{keepalive, _} | Options], Errors) ->
+    verify_options(Options, Errors);
 verify_options([Option | Options], Errors) ->
     verify_options(Options, [Option | Errors]);
 verify_options([], []) ->

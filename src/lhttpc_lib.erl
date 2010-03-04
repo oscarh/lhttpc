@@ -154,15 +154,22 @@ format_request(Path, Method, Hdrs, Host, Port, Body, PartialUpload, Options) ->
                 add_mandatory_hdrs(Method, Hdrs, Host, Port, Body, PartialUpload),
                 Options),
     IsChunked = is_chunked(AllHdrs),
-    {
+     {
         IsChunked,
-        [
-            Method, " ", Path, " HTTP/1.1\r\n",
-            format_hdrs(AllHdrs),
-            format_body(Body, IsChunked)
-        ]
+        sanitize([
+                  Method, " ", Path, " HTTP/1.1\r\n",
+                  format_hdrs(AllHdrs),
+                  format_body(Body, IsChunked)
+                 ],[])
     }.
+    
 
+sanitize([],Acc) ->
+    lists:flatten(lists:reverse(Acc));
+sanitize([[]|T],Acc) ->
+    sanitize(T,Acc);
+sanitize([H|T],Acc) ->
+    sanitize(T,[H|Acc]).
 %% @spec normalize_method(AtomOrString) -> Method
 %%   AtomOrString = atom() | string()
 %%   Method = string()
@@ -208,7 +215,9 @@ add_mandatory_hdrs(Method, Hdrs, Host, Port, Body, PartialUpload) ->
 add_optional_hdrs(Hdrs, []) ->
     Hdrs;
 add_optional_hdrs(Hdrs, Options) ->
-    add_proxy_auth(Hdrs, proplists:get_value(proxy_auth, Options)). 
+    add_keepalive_headers(
+      add_proxy_auth(Hdrs, proplists:get_value(proxy_auth, Options)),
+      proplists:get_value(keepalive, Options)). 
 
 add_proxy_auth(Hdrs, undefined) ->
     Hdrs;
@@ -220,6 +229,16 @@ add_proxy_auth(Hdrs, {User,Pass}) ->
         _ ->
             Hdrs
     end.
+
+add_keepalive_headers(Hdrs, true) ->
+    case header_value("keepalive", Hdrs) of
+        undefined ->
+            [{"Connection", "Keep-Alive"} | Hdrs];
+        _ ->
+            Hdrs
+    end;
+add_keepalive_headers(Hdrs, _) ->
+    Hdrs.
 
 add_content_headers("POST", Hdrs, Body, PartialUpload) ->
     add_content_headers(Hdrs, Body, PartialUpload);
