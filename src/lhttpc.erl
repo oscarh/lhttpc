@@ -547,6 +547,17 @@ verify_options([{partial_download, DownloadOptions} | Options], Errors)
 verify_options([{connect_options, List} | Options], Errors)
         when is_list(List) ->
     verify_options(Options, Errors);
+verify_options([{proxy_auth, {User, Pass}} | Options], Errors)
+  when is_list(User), is_list(Pass) ->
+    verify_options(Options, Errors);
+verify_options([{proxy, _} | Options], Errors) ->
+    verify_options(Options, Errors);
+verify_options([{proxy_port, Port} | Options], Errors) 
+  when is_integer(Port) ->
+    verify_options(Options, Errors);
+verify_options([{no_proxy, AddrList} | Options], Errors) 
+  when is_list(AddrList) ->
+    verify_options(Options, Errors);
 verify_options([Option | Options], Errors) ->
     verify_options(Options, [Option | Errors]);
 verify_options([], []) ->

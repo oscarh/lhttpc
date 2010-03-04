@@ -35,7 +35,7 @@
 
 -export([
         parse_url/1,
-        format_request/7,
+        format_request/8,
         header_value/2,
         header_value/3,
         normalize_method/1
@@ -138,7 +138,7 @@ split_port(_,[$/ | _] = Path, Port) ->
 split_port(Scheme, [P | T], Port) ->
     split_port(Scheme, T, [P | Port]).
 
-%% @spec (Path, Method, Headers, Host, Port, Body, PartialUpload) -> Request
+%% @spec (Path, Method, Headers, Host, Port, Body, PartialUpload, Option) -> Request
 %% Path = iolist()
 %% Method = atom() | string()
 %% Headers = [{atom() | string(), string()}]
@@ -146,10 +146,13 @@ split_port(Scheme, [P | T], Port) ->
 %% Port = integer()
 %% Body = iolist()
 %% PartialUpload = true | false
+%% Option = option()
 -spec format_request(iolist(), atom() | string(), headers(), string(),
-    integer(), iolist(), true | false ) -> {true | false, iolist()}.
-format_request(Path, Method, Hdrs, Host, Port, Body, PartialUpload) ->
-    AllHdrs = add_mandatory_hdrs(Method, Hdrs, Host, Port, Body, PartialUpload),
+    integer(), iolist(), true | false, option()) -> {true | false, iolist()}.
+format_request(Path, Method, Hdrs, Host, Port, Body, PartialUpload, Options) ->
+    AllHdrs = add_optional_hdrs(
+                add_mandatory_hdrs(Method, Hdrs, Host, Port, Body, PartialUpload),
+                Options),
     IsChunked = is_chunked(AllHdrs),
     {
         IsChunked,
@@ -201,6 +204,22 @@ format_body(Body, true) ->
 add_mandatory_hdrs(Method, Hdrs, Host, Port, Body, PartialUpload) ->
     ContentHdrs = add_content_headers(Method, Hdrs, Body, PartialUpload),  
     add_host(ContentHdrs, Host, Port).
+
+add_optional_hdrs(Hdrs, []) ->
+    Hdrs;
+add_optional_hdrs(Hdrs, Options) ->
+    add_proxy_auth(Hdrs, proplists:get_value(proxy_auth, Options)). 
+
+add_proxy_auth(Hdrs, undefined) ->
+    Hdrs;
+add_proxy_auth(Hdrs, {User,Pass}) ->
+    case header_value("proxy-authorization", Hdrs) of
+        undefined ->
+            ProxyAuth = base64:encode_to_string(User ++ ":" ++ Pass),
+            [{"Proxy-Authorization", ProxyAuth} | Hdrs];
+        _ ->
+            Hdrs
+    end.
 
 add_content_headers("POST", Hdrs, Body, PartialUpload) ->
     add_content_headers(Hdrs, Body, PartialUpload);

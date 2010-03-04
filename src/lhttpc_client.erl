@@ -39,26 +39,30 @@
 -include("lhttpc_types.hrl").
 
 -record(client_state, {
-        host :: string(),
-        port = 80 :: integer(),
-        ssl = false :: true | false,
-        method :: string(),
-        request :: iolist(),
-        request_headers :: headers(),
-        socket,
-        connect_timeout = infinity :: timeout(),
-        connect_options = [] :: [any()],
-        attempts :: integer(),
-        requester :: pid(),
-        partial_upload = false :: true | false,
-        chunked_upload = false :: true | false,
-        upload_window :: non_neg_integer() | infinity,
-        partial_download = false :: true | false,
-        download_window = infinity :: timeout(),
-        part_size :: non_neg_integer() | infinity
-        %% in case of infinity we read whatever data we can get from
-        %% the wire at that point or in case of chunked one chunk
-    }).
+          host :: string(),
+          port = 80 :: integer(),
+          ssl = false :: true | false,
+          method :: string(),
+          request :: iolist(),
+          request_headers :: headers(),
+          socket,
+          connect_timeout = infinity :: timeout(),
+          connect_options = [] :: [any()],
+          attempts :: integer(),
+          requester :: pid(),
+          partial_upload = false :: true | false,
+          chunked_upload = false :: true | false,
+          upload_window :: non_neg_integer() | infinity,
+          partial_download = false :: true | false,
+          download_window = infinity :: timeout(),
+          part_size :: non_neg_integer() | infinity,
+          %% in case of infinity we read whatever data we can get from
+          %% the wire at that point or in case of chunked one chunk
+          proxy :: string(),
+          proxy_port :: integer(),
+          proxy_auth :: {string(),string()},
+          no_proxy :: [{string(),integer()}]
+         }).
 
 -define(CONNECTION_HDR(HDRS, DEFAULT),
     string:to_lower(lhttpc_lib:header_value("connection", HDRS, DEFAULT))).
@@ -104,8 +108,16 @@ execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
     PartialDownloadOptions = proplists:get_value(partial_download, Options, []),
     NormalizedMethod = lhttpc_lib:normalize_method(Method),
     {ChunkedUpload, Request} = lhttpc_lib:format_request(Path, NormalizedMethod,
-        Hdrs, Host, Port, Body, PartialUpload),
-    SocketRequest = {socket, self(), Host, Port, Ssl},
+        Hdrs, Host, Port, Body, PartialUpload,Options),
+    ProxyAuth = proplists:get_value(proxy_auth, Options),
+    ProxyHost = proplists:get_value(proxy, Options),
+    ProxyPort = proplists:get_value(proxy_port, Options),
+    NoProxy =  proplists:get_value(no_proxy, Options),
+    {SocketHost, SocketPort} = determine_destination({Host,Port},
+                                                     {ProxyHost,ProxyPort},
+                                                     NoProxy
+                                                    ),
+    SocketRequest = {socket, self(), SocketHost, SocketPort, Ssl},
     Socket = case gen_server:call(lhttpc_manager, SocketRequest, infinity) of
         {ok, S}   -> S; % Re-using HTTP/1.1 connections
         no_socket -> undefined % Opening a new HTTP/1.1 connection
@@ -130,8 +142,12 @@ execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
         download_window = proplists:get_value(window_size,
             PartialDownloadOptions, infinity),
         part_size = proplists:get_value(part_size,
-            PartialDownloadOptions, infinity)
-    },
+            PartialDownloadOptions, infinity),
+      proxy_auth = ProxyAuth,
+      proxy = ProxyHost, 
+      proxy_port = ProxyPort,
+      no_proxy = NoProxy
+     },
     Response = case send_request(State) of
         {R, undefined} ->
             {ok, R};
@@ -166,7 +182,14 @@ send_request(#client_state{socket = undefined} = State) ->
     Timeout = State#client_state.connect_timeout,
     ConnectOptions = State#client_state.connect_options,
     SocketOptions = [binary, {packet, http}, {active, false} | ConnectOptions],
-    case lhttpc_sock:connect(Host, Port, SocketOptions, Timeout, Ssl) of
+    ProxyHost = State#client_state.proxy,
+    ProxyPort = State#client_state.proxy_port,
+    NoProxy = State#client_state.no_proxy,
+    {SocketHost, SocketPort} = determine_destination({Host,Port},
+                                                     {ProxyHost,ProxyPort},
+                                                     NoProxy
+                                                    ),
+    case lhttpc_sock:connect(SocketHost, SocketPort, SocketOptions, Timeout, Ssl) of
         {ok, Socket} ->
             send_request(State#client_state{socket = Socket});
         {error, etimedout} ->
@@ -645,3 +668,17 @@ maybe_close_socket(Socket, Ssl, _, ReqHdrs, RespHdrs) ->
         ClientConnection =/= "close", ServerConnection =:= "keep-alive" ->
             Socket
     end.
+
+determine_destination({ReqHost,ReqPort},{undefined, _},_) ->
+    {ReqHost,ReqPort};
+determine_destination(_,{ProxyHost, ProxyPort},[]) ->
+    {ProxyHost, ProxyPort};
+determine_destination(_,{ProxyHost, ProxyPort},undefined) ->
+    {ProxyHost, ProxyPort};
+determine_destination(OrigAddr, Proxy, NoProxy) ->
+   case lists:member(Proxy, NoProxy) of
+       true ->
+           OrigAddr;
+       false ->
+           Proxy
+   end.

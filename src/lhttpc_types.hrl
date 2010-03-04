@@ -33,7 +33,11 @@
         {connect_timeout, timeout()} |
         {send_retry, non_neg_integer()} |
         {partial_upload, non_neg_integer() | infinity} |
-        {partial_download, pid(), non_neg_integer() | infinity}.
+        {partial_download, pid(), non_neg_integer() | infinity} |
+        {proxy_auth, {string(),string()}} |
+        {proxy, string()} |
+        {proxy_port, integer()} |
+        {no_proxy, [string()]}.
 
 -type options() :: [option()].
 

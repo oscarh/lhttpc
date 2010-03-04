@@ -34,7 +34,7 @@
 %%% @end
 %%% @type boolean() = bool().
 -module(lhttpc_manager).
-
+-type boolean() :: bool().
 -export([
         start_link/0,
         connection_count/0,
