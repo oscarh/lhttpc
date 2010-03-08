@@ -186,7 +186,8 @@ request(URL, Method, Hdrs, Body, Timeout) ->
         pos_integer() | infinity, [option()]) -> result().
 request(URL, Method, Hdrs, Body, Timeout, Options) ->
     {Host, Port, Path, Ssl} = lhttpc_lib:parse_url(URL),
-    request(Host, Port, Ssl, Path, Method, Hdrs, Body, Timeout, Options).
+    request(Host, Port, Ssl, Path, Method, Hdrs, Body, Timeout,
+            [{absolute_uri, URL}|Options]).
 
 %% @spec (Host, Port, Ssl, Path, Method, Hdrs, RequestBody, Timeout, Options) ->
 %%                                                                        Result
@@ -313,7 +314,14 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
     headers(), iolist(), pos_integer(), [option()]) -> result().
 request(Host, Port, Ssl, Path, Method, Hdrs, Body, Timeout, Options) ->
     verify_options(Options, []),
-    Args = [self(), Host, Port, Ssl, Path, Method, Hdrs, Body, Options],
+    FinalOptions = case proplists:is_defined(absolute_uri, Options) of
+                       false -> 
+                           URI = rebuild_uri([Host, Port, Path, Ssl]),
+                           [{absolute_uri, URI} | Options];
+                       true ->
+                           Options
+                   end,
+    Args = [self(), Host, Port, Ssl, Path, Method, Hdrs, Body, FinalOptions],
     Pid = spawn_link(lhttpc_client, request, Args),
     receive
         {response, Pid, R} ->
@@ -550,15 +558,16 @@ verify_options([{connect_options, List} | Options], Errors)
 verify_options([{proxy_auth, {User, Pass}} | Options], Errors)
   when is_list(User), is_list(Pass) ->
     verify_options(Options, Errors);
-verify_options([{proxy, _} | Options], Errors) ->
+verify_options([{proxy_host, Host} | Options], Errors)
+  when is_list(Host) ->
     verify_options(Options, Errors);
-verify_options([{proxy_port, Port} | Options], Errors) 
+verify_options([{proxy_port, Port} | Options], Errors)
   when is_integer(Port) ->
     verify_options(Options, Errors);
-verify_options([{no_proxy, AddrList} | Options], Errors) 
+verify_options([{ignore_proxy, AddrList} | Options], Errors) 
   when is_list(AddrList) ->
     verify_options(Options, Errors);
-verify_options([{keepalive, _} | Options], Errors) ->
+verify_options([{absolute_uri, _} | Options], Errors) ->
     verify_options(Options, Errors);
 verify_options([Option | Options], Errors) ->
     verify_options(Options, [Option | Errors]);
@@ -586,3 +595,17 @@ verify_partial_download([Option | Options], Errors) ->
     verify_partial_download(Options, [Option | Errors]);
 verify_partial_download([], Errors) ->
     Errors.
+    
+rebuild_uri(UriParts = [Host, Port, Path, Ssl]) ->
+    case lists:member(undefined, UriParts) of
+        true ->
+            erlang:error(missing_uri_part);
+        false ->
+            lists:concat(
+              if Ssl ->
+                      "https://";
+                 true ->
+                      "http://"
+              end,
+              Host,":",Port,Path)
+    end.

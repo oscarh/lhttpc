@@ -38,10 +38,10 @@
         {partial_upload, non_neg_integer() | infinity} |
         {partial_download, pid(), non_neg_integer() | infinity} |
         {proxy_auth, {string(),string()}} |
-        {proxy, string()} |
+        {proxy_host, string()} |
         {proxy_port, integer()} |
-        {keepalive, boolean()} |
-        {no_proxy, [string()]}.
+        {absolute_uri, string()} |
+        {ignore_proxy, [string()]}.
 
 -type options() :: [option()].
 

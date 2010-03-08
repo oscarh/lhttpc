@@ -58,10 +58,10 @@
           part_size :: non_neg_integer() | infinity,
           %% in case of infinity we read whatever data we can get from
           %% the wire at that point or in case of chunked one chunk
-          proxy :: string(),
+          proxy_host :: string(),
           proxy_port :: integer(),
           proxy_auth :: {string(),string()},
-          no_proxy :: [{string(),integer()}]
+          ignore_proxy :: [{string(),integer()}]
          }).
 
 -define(CONNECTION_HDR(HDRS, DEFAULT),
@@ -108,14 +108,14 @@ execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
     PartialDownloadOptions = proplists:get_value(partial_download, Options, []),
     NormalizedMethod = lhttpc_lib:normalize_method(Method),
     {ChunkedUpload, Request} = lhttpc_lib:format_request(Path, NormalizedMethod,
-        Hdrs, Host, Port, Body, PartialUpload,Options),
+                                                         Hdrs, Host, Port, Body, PartialUpload,Options),
     ProxyAuth = proplists:get_value(proxy_auth, Options),
-    ProxyHost = proplists:get_value(proxy, Options),
-    ProxyPort = proplists:get_value(proxy_port, Options),
-    NoProxy =  proplists:get_value(no_proxy, Options),
+    ProxyHost = proplists:get_value(proxy_host, Options),
+    ProxyPort = proplists:get_value(proxy_port, Options, 80),
+    IgnoreProxy =  proplists:get_value(ignore_proxy, Options),
     {SocketHost, SocketPort} = determine_destination({Host,Port},
                                                      {ProxyHost,ProxyPort},
-                                                     NoProxy
+                                                     IgnoreProxy
                                                     ),
     SocketRequest = {socket, self(), SocketHost, SocketPort, Ssl},
     Socket = case gen_server:call(lhttpc_manager, SocketRequest, infinity) of
@@ -144,9 +144,9 @@ execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
         part_size = proplists:get_value(part_size,
             PartialDownloadOptions, infinity),
       proxy_auth = ProxyAuth,
-      proxy = ProxyHost, 
+      proxy_host = ProxyHost, 
       proxy_port = ProxyPort,
-      no_proxy = NoProxy
+      ignore_proxy = IgnoreProxy
      },
     Response = case send_request(State) of
         {R, undefined} ->
@@ -182,12 +182,12 @@ send_request(#client_state{socket = undefined} = State) ->
     Timeout = State#client_state.connect_timeout,
     ConnectOptions = State#client_state.connect_options,
     SocketOptions = [binary, {packet, http}, {active, false} | ConnectOptions],
-    ProxyHost = State#client_state.proxy,
+    ProxyHost = State#client_state.proxy_host,
     ProxyPort = State#client_state.proxy_port,
-    NoProxy = State#client_state.no_proxy,
+    IgnoreProxy = State#client_state.ignore_proxy,
     {SocketHost, SocketPort} = determine_destination({Host,Port},
                                                      {ProxyHost,ProxyPort},
-                                                     NoProxy
+                                                     IgnoreProxy
                                                     ),
     case lhttpc_sock:connect(SocketHost, SocketPort, SocketOptions, Timeout, Ssl) of
         {ok, Socket} ->
