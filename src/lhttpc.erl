@@ -309,6 +309,23 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %% `ResponseBody' is going to be a `pid()' unless the response has no body
 %% (for example in case of `HEAD' requests). In that case it is going to be
 %% `undefined'. 
+%%
+%% `{proxy_host, ProxyHost}' specifies host part of the address of transparent 
+%%  proxy. Represented as a string. 
+%%
+%% `{proxy_port, ProxyPort}' specifies port part of the address of transparent 
+%%  proxy. Represented as a integer.
+%%
+%% `{ignore_proxy, IgnoreProxyList}' option which is a container for the list of
+%% addresses which will not be proxied. Even though options are passed to every
+%% request it still might be taken from config file or a generator, so this 
+%% option simplifies building request on a system side. It is represented as 
+%% the list of tuples `{Host, Port}'.  
+%%
+%% `{absolute_uri, AbsoluteUri}' specifies absolute URI which is necessary to
+%% form request to be send via transparent proxy. In case of missing this option
+%% it is internally rebuild (from parsed request data) and added to option list. 
+%%
 %% @end
 -spec request(string(), 1..65535, true | false, string(), atom() | string(),
     headers(), iolist(), pos_integer(), [option()]) -> result().
@@ -556,16 +573,16 @@ verify_options([{connect_options, List} | Options], Errors)
         when is_list(List) ->
     verify_options(Options, Errors);
 verify_options([{proxy_auth, {User, Pass}} | Options], Errors)
-  when is_list(User), is_list(Pass) ->
+        when is_list(User), is_list(Pass) ->
     verify_options(Options, Errors);
 verify_options([{proxy_host, Host} | Options], Errors)
-  when is_list(Host) ->
+        when is_list(Host) ->
     verify_options(Options, Errors);
 verify_options([{proxy_port, Port} | Options], Errors)
-  when is_integer(Port) ->
+        when is_integer(Port) ->
     verify_options(Options, Errors);
 verify_options([{ignore_proxy, AddrList} | Options], Errors) 
-  when is_list(AddrList) ->
+        when is_list(AddrList) ->
     verify_options(Options, Errors);
 verify_options([{absolute_uri, _} | Options], Errors) ->
     verify_options(Options, Errors);

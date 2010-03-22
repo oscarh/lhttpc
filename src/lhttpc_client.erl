@@ -108,7 +108,8 @@ execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
     PartialDownloadOptions = proplists:get_value(partial_download, Options, []),
     NormalizedMethod = lhttpc_lib:normalize_method(Method),
     {ChunkedUpload, Request} = lhttpc_lib:format_request(Path, NormalizedMethod,
-                                                         Hdrs, Host, Port, Body, PartialUpload,Options),
+                                                         Hdrs, Host, Port, Body, 
+							 PartialUpload, Options),
     ProxyAuth = proplists:get_value(proxy_auth, Options),
     ProxyHost = proplists:get_value(proxy_host, Options),
     ProxyPort = proplists:get_value(proxy_port, Options, 80),
@@ -143,10 +144,10 @@ execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
             PartialDownloadOptions, infinity),
         part_size = proplists:get_value(part_size,
             PartialDownloadOptions, infinity),
-      proxy_auth = ProxyAuth,
-      proxy_host = ProxyHost, 
-      proxy_port = ProxyPort,
-      ignore_proxy = IgnoreProxy
+        proxy_auth = ProxyAuth,
+        proxy_host = ProxyHost, 
+        proxy_port = ProxyPort,
+        ignore_proxy = IgnoreProxy
      },
     Response = case send_request(State) of
         {R, undefined} ->
@@ -669,11 +670,11 @@ maybe_close_socket(Socket, Ssl, _, ReqHdrs, RespHdrs) ->
             Socket
     end.
 
-determine_destination({ReqHost,ReqPort},{undefined, _},_) ->
-    {ReqHost,ReqPort};
-determine_destination(_,{ProxyHost, ProxyPort},[]) ->
+determine_destination({ReqHost, ReqPort}, {undefined, _}, _) ->
+    {ReqHost, ReqPort};
+determine_destination(_, {ProxyHost, ProxyPort}, []) ->
     {ProxyHost, ProxyPort};
-determine_destination(_,{ProxyHost, ProxyPort},undefined) ->
+determine_destination(_, {ProxyHost, ProxyPort}, undefined) ->
     {ProxyHost, ProxyPort};
 determine_destination(OrigAddr, Proxy, NoProxy) ->
    case lists:member(Proxy, NoProxy) of
