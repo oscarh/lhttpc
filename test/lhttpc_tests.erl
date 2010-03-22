@@ -27,84 +27,21 @@
 %%% @author Oscar Hellström <oscar@erlang-consulting.com>
 -module(lhttpc_tests).
 
--export([test_no/2]).
 -import(webserver, [start/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
 -define(DEFAULT_STRING, "Great success!").
--define(LONG_BODY_PART,
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-        "This is a relatively long body, that we send to the client... "
-    ).
-
-test_no(N, Tests) ->
-    setelement(2, Tests,
-        setelement(4, element(2, Tests),
-            lists:nth(N, element(4, element(2, Tests))))).
 
 %%% Eunit setup stuff
 
 start_app() ->
     ok = application:start(crypto),
     ok = application:start(ssl),
-    ok = lhttpc:start().
+    ok = application:start(lhttpc).
 
 stop_app(_) ->
-    ok = lhttpc:stop(),
+    ok = application:stop(lhttpc),
     ok = application:stop(ssl),
     ok = application:stop(crypto).
 
@@ -113,11 +50,10 @@ tcp_test_() ->
         {setup, fun start_app/0, fun stop_app/1, [
                 ?_test(simple_get()),
                 ?_test(empty_get()),
+                ?_test(get_over_ignored_proxy()),
                 ?_test(get_with_mandatory_hdrs()),
-                ?_test(get_with_connect_options()),
                 ?_test(no_content_length()),
                 ?_test(no_content_length_1_0()),
-                ?_test(get_not_modified()),
                 ?_test(simple_head()),
                 ?_test(simple_head_atom()),
                 ?_test(delete_no_content()),
@@ -137,22 +73,7 @@ tcp_test_() ->
                 ?_test(connection_timeout()),
                 ?_test(suspended_manager()),
                 ?_test(chunked_encoding()),
-                ?_test(partial_upload_identity()),
-                ?_test(partial_upload_identity_iolist()),
-                ?_test(partial_upload_chunked()),
-                ?_test(partial_upload_chunked_no_trailer()),
-                ?_test(partial_download_illegal_option()),
-                ?_test(partial_download_identity()),
-                ?_test(partial_download_infinity_window()),
-                ?_test(partial_download_no_content_length()),
-                ?_test(partial_download_no_content()),
-                ?_test(limited_partial_download_identity()),
-                ?_test(partial_download_chunked()),
-                ?_test(partial_download_chunked_infinite_part()),
-                ?_test(partial_download_smallish_chunks()),
-                ?_test(partial_download_slow_chunks()),
                 ?_test(close_connection()),
-                ?_test(message_queue()),
                 ?_test(connection_count()) % just check that it's 0 (last)
             ]}
     }.
@@ -174,9 +95,6 @@ other_test_() ->
 
 %%% Tests
 
-message_queue() ->
-    receive X -> erlang:error({unexpected_message, X}) after 0 -> ok end.
-
 simple_get() ->
     simple(get),
     simple("GET").
@@ -187,6 +105,16 @@ empty_get() ->
     {ok, Response} = lhttpc:request(URL, "GET", [], 1000),
     ?assertEqual({200, "OK"}, status(Response)),
     ?assertEqual(<<>>, body(Response)).
+
+get_over_ignored_proxy() ->
+    Port = start(gen_tcp, [fun empty_body/5]),
+    URL = url(Port, "/empty"),
+    {ok, Response} = lhttpc:request(URL, "GET", [], [], infinity, [{proxy_host, "xxx.xxx"},
+                                                                   {proxy_port, 8080},
+                                                                   {ignore_proxy, [{"xxx.xxx",8080}]},
+                                                                   {proxy_auth, {"xxx","xxx"}}]),
+    ?assertEqual({200, "OK"}, status(Response)),
+    ?assertEqual(<<>>, body(Response)). 
 
 get_with_mandatory_hdrs() ->
     Port = start(gen_tcp, [fun simple_response/5]),
@@ -199,14 +127,6 @@ get_with_mandatory_hdrs() ->
     {ok, Response} = lhttpc:request(URL, "POST", Hdrs, Body, 1000),
     ?assertEqual({200, "OK"}, status(Response)),
     ?assertEqual(<<?DEFAULT_STRING>>, body(Response)).
-
-get_with_connect_options() ->
-    Port = start(gen_tcp, [fun empty_body/5]),
-    URL = url(Port, "/empty"),
-    Options = [{connect_options, [{ip, {127, 0, 0, 1}}, {port, 0}]}],
-    {ok, Response} = lhttpc:request(URL, "GET", [], [], 1000, Options),
-    ?assertEqual({200, "OK"}, status(Response)),
-    ?assertEqual(<<>>, body(Response)).
 
 no_content_length() ->
     Port = start(gen_tcp, [fun no_content_length/5]),
@@ -221,13 +141,6 @@ no_content_length_1_0() ->
     {ok, Response} = lhttpc:request(URL, "GET", [], 1000),
     ?assertEqual({200, "OK"}, status(Response)),
     ?assertEqual(<<?DEFAULT_STRING>>, body(Response)).
-
-get_not_modified() ->
-    Port = start(gen_tcp, [fun not_modified_response/5]),
-    URL = url(Port, "/not_modified"),
-    {ok, Response} = lhttpc:request(URL, "GET", [], [], 1000),
-    ?assertEqual({304, "Not Modified"}, status(Response)),
-    ?assertEqual(<<>>, body(Response)).
 
 simple_head() ->
     Port = start(gen_tcp, [fun head_response/5]),
@@ -300,22 +213,14 @@ pre_1_1_server_connection() ->
     receive closed -> ok end.
 
 pre_1_1_server_keep_alive() ->
-    Port = start(gen_tcp, [
-            fun pre_1_1_server_keep_alive/5,
-            fun pre_1_1_server/5
-        ]),
+    Port = start(gen_tcp, [fun simple_response/5, fun simple_response/5]),
     URL = url(Port, "/close"),
-    Body = pid_to_list(self()),
     {ok, Response1} = lhttpc:request(URL, get, [], [], 1000),
-    {ok, Response2} = lhttpc:request(URL, put, [], Body, 1000),
+    {ok, Response2} = lhttpc:request(URL, get, [], [], 1000),
     ?assertEqual({200, "OK"}, status(Response1)),
     ?assertEqual({200, "OK"}, status(Response2)),
     ?assertEqual(<<?DEFAULT_STRING>>, body(Response1)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response2)),
-    % Wait for the server to see that socket has been closed.
-    % The socket should be closed by us since the server responded with a
-    % 1.0 version, and not the Connection: keep-alive header.
-    receive closed -> ok end.
+    ?assertEqual(<<?DEFAULT_STRING>>, body(Response2)).
 
 simple_put() ->
     simple(put),
@@ -420,223 +325,10 @@ chunked_encoding() ->
     ?assertEqual(<<"Again, great success!">>, body(SecondResponse)),
     ?assertEqual("ChUnKeD", lhttpc_lib:header_value("transfer-encoding",
             headers(SecondResponse))),
-    ?assertEqual("1", lhttpc_lib:header_value("trailer-1",
+    ?assertEqual("1", lhttpc_lib:header_value("Trailer-1",
             headers(SecondResponse))),
-    ?assertEqual("2", lhttpc_lib:header_value("trailer-2",
+    ?assertEqual("2", lhttpc_lib:header_value("Trailer-2",
             headers(SecondResponse))).
-
-partial_upload_identity() ->
-    Port = start(gen_tcp, [fun simple_response/5, fun simple_response/5]),
-    URL = url(Port, "/partial_upload"),
-    Body = [<<"This">>, <<" is ">>, <<"chunky">>, <<" stuff!">>],
-    Hdrs = [{"Content-Length", integer_to_list(iolist_size(Body))}],
-    Options = [{partial_upload, 1}],
-    {ok, UploadState1} = lhttpc:request(URL, post, Hdrs, hd(Body), 1000, Options),
-    Response1 = lists:foldl(fun upload_parts/2, UploadState1,
-        tl(Body) ++ [http_eob]),
-    ?assertEqual({200, "OK"}, status(Response1)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response1)),
-    ?assertEqual("This is chunky stuff!",
-        lhttpc_lib:header_value("x-test-orig-body", headers(Response1))),
-    % Make sure it works with no body part in the original request as well
-    {ok, UploadState2} = lhttpc:request(URL, post, Hdrs, [], 1000, Options),
-    Response2 = lists:foldl(fun upload_parts/2, UploadState2,
-        Body ++ [http_eob]),
-    ?assertEqual({200, "OK"}, status(Response2)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response2)),
-    ?assertEqual("This is chunky stuff!",
-        lhttpc_lib:header_value("x-test-orig-body", headers(Response2))).
-
-partial_upload_identity_iolist() ->
-    Port = start(gen_tcp, [fun simple_response/5, fun simple_response/5]),
-    URL = url(Port, "/partial_upload"),
-    Body = ["This", [<<" ">>, $i, $s, [" "]], <<"chunky">>, [<<" stuff!">>]],
-    Hdrs = [{"Content-Length", integer_to_list(iolist_size(Body))}],
-    Options = [{partial_upload, 1}],
-    {ok, UploadState1} = lhttpc:request(URL, post, Hdrs, hd(Body), 1000, Options),
-    Response1 = lists:foldl(fun upload_parts/2, UploadState1,
-        tl(Body) ++ [http_eob]),
-    ?assertEqual({200, "OK"}, status(Response1)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response1)),
-    ?assertEqual("This is chunky stuff!",
-        lhttpc_lib:header_value("x-test-orig-body", headers(Response1))),
-    % Make sure it works with no body part in the original request as well
-    {ok, UploadState2} = lhttpc:request(URL, post, Hdrs, [], 1000, Options),
-    Response2 = lists:foldl(fun upload_parts/2, UploadState2,
-        Body ++ [http_eob]),
-    ?assertEqual({200, "OK"}, status(Response2)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response2)),
-    ?assertEqual("This is chunky stuff!",
-        lhttpc_lib:header_value("x-test-orig-body", headers(Response2))).
-
-partial_upload_chunked() ->
-    Port = start(gen_tcp, [fun chunked_upload/5, fun chunked_upload/5]),
-    URL = url(Port, "/partial_upload_chunked"),
-    Body = ["This", [<<" ">>, $i, $s, [" "]], <<"chunky">>, [<<" stuff!">>]],
-    Options = [{partial_upload, 1}],
-    {ok, UploadState1} = lhttpc:request(URL, post, [], hd(Body), 1000, Options),
-    Trailer = {"X-Trailer-1", "my tail is tailing me...."},
-    {ok, Response1} = lhttpc:send_trailers(
-        lists:foldl(fun upload_parts/2, UploadState1, tl(Body)),
-        [Trailer]
-    ),
-    ?assertEqual({200, "OK"}, status(Response1)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response1)),
-    ?assertEqual("This is chunky stuff!",
-        lhttpc_lib:header_value("x-test-orig-body", headers(Response1))),
-    ?assertEqual(element(2, Trailer), 
-        lhttpc_lib:header_value("x-test-orig-trailer-1", headers(Response1))),
-    % Make sure it works with no body part in the original request as well
-    Headers = [{"Transfer-Encoding", "chunked"}],
-    {ok, UploadState2} = lhttpc:request(URL, post, Headers, [], 1000, Options),
-    {ok, Response2} = lhttpc:send_trailers(
-        lists:foldl(fun upload_parts/2, UploadState2, Body),
-        [Trailer]
-    ),
-    ?assertEqual({200, "OK"}, status(Response2)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response2)),
-    ?assertEqual("This is chunky stuff!",
-        lhttpc_lib:header_value("x-test-orig-body", headers(Response2))),
-    ?assertEqual(element(2, Trailer), 
-        lhttpc_lib:header_value("x-test-orig-trailer-1", headers(Response2))).
-
-partial_upload_chunked_no_trailer() ->
-    Port = start(gen_tcp, [fun chunked_upload/5]),
-    URL = url(Port, "/partial_upload_chunked_no_trailer"),
-    Body = [<<"This">>, <<" is ">>, <<"chunky">>, <<" stuff!">>],
-    Options = [{partial_upload, 1}],
-    {ok, UploadState1} = lhttpc:request(URL, post, [], hd(Body), 1000, Options),
-    {ok, Response} = lhttpc:send_body_part(
-        lists:foldl(fun upload_parts/2, UploadState1, tl(Body)),
-        http_eob
-    ),
-    ?assertEqual({200, "OK"}, status(Response)),
-    ?assertEqual(<<?DEFAULT_STRING>>, body(Response)),
-    ?assertEqual("This is chunky stuff!",
-        lhttpc_lib:header_value("x-test-orig-body", headers(Response))).
-
-partial_download_illegal_option() ->
-    ?assertError({bad_options, [{partial_download, [{foo, bar}]}]},
-        lhttpc:request("http://localhost/", get, [], <<>>, 1000,
-            [{partial_download, [{foo, bar}]}])).
-
-partial_download_identity() ->
-    Port = start(gen_tcp, [fun large_response/5]),
-    URL = url(Port, "/partial_download_identity"),
-    PartialDownload = [
-        {window_size, 1}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} =
-        lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?LONG_BODY_PART ?LONG_BODY_PART ?LONG_BODY_PART>>, Body).
-
-partial_download_infinity_window() ->
-    Port = start(gen_tcp, [fun large_response/5]),
-    URL = url(Port, "/partial_download_identity"),
-    PartialDownload = [
-        {window_size, infinity}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} = lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?LONG_BODY_PART ?LONG_BODY_PART ?LONG_BODY_PART>>, Body).
-
-partial_download_no_content_length() ->
-    Port = start(gen_tcp, [fun no_content_length/5]),
-    URL = url(Port, "/no_cl"),
-    PartialDownload = [
-        {window_size, 1}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} = lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?DEFAULT_STRING>>, Body).
-
-partial_download_no_content() ->
-    Port = start(gen_tcp, [fun no_content_response/5]),
-    URL = url(Port, "/partial_download_identity"),
-    PartialDownload = [
-        {window_size, 1}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Body}} =
-        lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    ?assertEqual({204, "OK"}, Status),
-    ?assertEqual(undefined, Body).
-
-limited_partial_download_identity() ->
-    Port = start(gen_tcp, [fun large_response/5]),
-    URL = url(Port, "/partial_download_identity"),
-    PartialDownload = [
-        {window_size, 1},
-        {part_size, 512} % bytes
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} =
-        lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid, 512),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?LONG_BODY_PART ?LONG_BODY_PART ?LONG_BODY_PART>>, Body).
-
-partial_download_chunked() ->
-    Port = start(gen_tcp, [fun large_chunked_response/5]),
-    URL = url(Port, "/partial_download_identity"),
-    PartialDownload = [
-        {window_size, 1},
-        {part_size, length(?LONG_BODY_PART) * 3}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} =
-        lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?LONG_BODY_PART ?LONG_BODY_PART ?LONG_BODY_PART>>, Body).
-
-partial_download_chunked_infinite_part() ->
-    Port = start(gen_tcp, [fun large_chunked_response/5]),
-    URL = url(Port, "/partial_download_identity"),
-    PartialDownload = [
-        {window_size, 1},
-        {part_size, infinity}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} =
-        lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?LONG_BODY_PART ?LONG_BODY_PART ?LONG_BODY_PART>>, Body).
-
-partial_download_smallish_chunks() ->
-    Port = start(gen_tcp, [fun large_chunked_response/5]),
-    URL = url(Port, "/partial_download_identity"),
-    PartialDownload = [
-        {window_size, 1},
-        {part_size, length(?LONG_BODY_PART) - 1}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} =
-        lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?LONG_BODY_PART ?LONG_BODY_PART ?LONG_BODY_PART>>, Body).
-
-partial_download_slow_chunks() ->
-    Port = start(gen_tcp, [fun slow_chunked_response/5]),
-    URL = url(Port, "/slow"),
-    PartialDownload = [
-        {window_size, 1},
-        {part_size, length(?LONG_BODY_PART) div 2}
-    ],
-    Options = [{partial_download, PartialDownload}],
-    {ok, {Status, _, Pid}} = lhttpc:request(URL, get, [], <<>>, 1000, Options),
-    Body = read_partial_body(Pid),
-    ?assertEqual({200, "OK"}, Status),
-    ?assertEqual(<<?LONG_BODY_PART ?LONG_BODY_PART>>, Body).
 
 close_connection() ->
     Port = start(gen_tcp, [fun close_connection/5]),
@@ -662,7 +354,7 @@ ssl_post() ->
 
 ssl_chunked() ->
     Port = start(ssl, [fun chunked_response/5, fun chunked_response_t/5]),
-    URL = ssl_url(Port, "/ssl_chunked"),
+    URL = ssl_url(Port, "/chunked"),
     {ok, FirstResponse} = lhttpc:request(URL, get, [], 50),
     ?assertEqual({200, "OK"}, status(FirstResponse)),
     ?assertEqual(<<?DEFAULT_STRING>>, body(FirstResponse)),
@@ -689,30 +381,6 @@ invalid_options() ->
 
 %%% Helpers functions
 
-upload_parts(BodyPart, CurrentState) ->
-    {ok, NextState} = lhttpc:send_body_part(CurrentState, BodyPart, 1000),
-    NextState.
-
-read_partial_body(Pid) ->
-    read_partial_body(Pid, infinity, []).
-
-read_partial_body(Pid, Size) ->
-    read_partial_body(Pid, Size, []).
-
-read_partial_body(Pid, Size, Acc) ->
-    case lhttpc:get_body_part(Pid) of
-        {ok, {http_eob, []}} ->
-            list_to_binary(Acc);
-        {ok, Bin} ->
-            if
-                Size =:= infinity ->
-                    ok;
-                Size =/= infinity ->
-                    ?assert(Size >= iolist_size(Bin))
-            end,
-            read_partial_body(Pid, Size, [Acc, Bin])
-    end.
-
 simple(Method) ->
     Port = start(gen_tcp, [fun simple_response/5]),
     URL = url(Port, "/simple"),
@@ -738,80 +406,12 @@ headers({_, Headers, _}) ->
     Headers.
 
 %%% Responders
-simple_response(Module, Socket, _Request, _Headers, Body) ->
+simple_response(Module, Socket, _Request, _Headers, _Body) ->
     Module:send(
         Socket,
-        [
-            "HTTP/1.1 200 OK\r\n"
-            "Content-type: text/plain\r\nContent-length: 14\r\n"
-            "X-Test-Orig-Body: ", Body, "\r\n\r\n"
-            ?DEFAULT_STRING
-        ]
-    ).
-
-large_response(Module, Socket, _, _, _) ->
-    BodyPart = <<?LONG_BODY_PART>>,
-    ContentLength = 3 * size(BodyPart),
-    Module:send(
-        Socket,
-        [
-            "HTTP/1.1 200 OK\r\n"
-            "Content-type: text/plain\r\n"
-            "Content-length: ", integer_to_list(ContentLength), "\r\n\r\n"
-        ]
-    ),
-    Module:send(Socket, BodyPart),
-    Module:send(Socket, BodyPart),
-    Module:send(Socket, BodyPart).
-
-large_chunked_response(Module, Socket, _, _, _) ->
-    BodyPart = <<?LONG_BODY_PART>>,
-    ChunkSize = erlang:integer_to_list(size(BodyPart), 16),
-    Chunk = [ChunkSize, "\r\n", BodyPart, "\r\n"],
-    Module:send(
-        Socket,
-        [
-            "HTTP/1.1 200 OK\r\n"
-            "Content-type: text/plain\r\n"
-            "Transfer-Encoding: chunked\r\n\r\n"
-        ]
-    ),
-    Module:send(Socket, Chunk),
-    Module:send(Socket, Chunk),
-    Module:send(Socket, Chunk),
-    Module:send(Socket, "0\r\n\r\n").
-
-slow_chunked_response(Module, Socket, _, _, _) ->
-    ChunkSize = erlang:integer_to_list(length(?LONG_BODY_PART) * 2, 16),
-    Module:send(
-        Socket,
-        [
-            "HTTP/1.1 200 OK\r\n"
-            "Content-type: text/plain\r\n"
-            "Transfer-Encoding: chunked\r\n\r\n"
-        ]),
-    Module:send(Socket, [ChunkSize, "\r\n", <<?LONG_BODY_PART>>]),
-    timer:sleep(200),
-    Module:send(Socket, [<<?LONG_BODY_PART>>, "\r\n"]),
-    Module:send(Socket, "0\r\n\r\n").
-
-
-chunked_upload(Module, Socket, _, Headers, <<>>) ->
-    TransferEncoding = lhttpc_lib:header_value("transfer-encoding", Headers),
-    {Body, HeadersAndTrailers} =
-        webserver:read_chunked(Module, Socket, Headers),
-    Trailer1 = lhttpc_lib:header_value("x-trailer-1", HeadersAndTrailers,
-        "undefined"),
-    Module:send(
-        Socket,
-        [
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Length: 14\r\n"
-            "X-Test-Orig-Trailer-1:", Trailer1, "\r\n"
-            "X-Test-Orig-Enc: ", TransferEncoding, "\r\n"
-            "X-Test-Orig-Body: ", Body, "\r\n\r\n"
-            ?DEFAULT_STRING
-        ]
+        "HTTP/1.1 200 OK\r\n"
+        "Content-type: text/plain\r\nContent-length: 14\r\n\r\n"
+        ?DEFAULT_STRING
     ).
 
 head_response(Module, Socket, _Request, _Headers, _Body) ->
@@ -899,16 +499,6 @@ pre_1_1_server(Module, Socket, _, _, Body) ->
     Pid ! closed,
     Module:close(Socket).
 
-pre_1_1_server_keep_alive(Module, Socket, _, _, _) ->
-    Module:send(
-        Socket,
-        "HTTP/1.0 200 OK\r\n"
-        "Content-type: text/plain\r\n"
-        "Connection: Keep-Alive\r\n"
-        "Content-length: 14\r\n\r\n"
-        ?DEFAULT_STRING
-    ).
-
 very_slow_response(Module, Socket, _, _, _) ->
     timer:sleep(1000),
     Module:send(
@@ -971,12 +561,3 @@ close_connection(Module, Socket, _, _, _) ->
         "Content-type: text/plain\r\nContent-length: 14\r\n\r\n"
     ),
     Module:close(Socket).
-
-not_modified_response(Module, Socket, _Request, _Headers, _Body) ->
-    Module:send(
-        Socket,
-		[
-			"HTTP/1.1 304 Not Modified\r\n"
-			"Date: Tue, 15 Nov 1994 08:12:31 GMT\r\n\r\n"
-		]
-    ).
