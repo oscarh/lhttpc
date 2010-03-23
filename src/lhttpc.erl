@@ -33,7 +33,7 @@
 -module(lhttpc).
 -behaviour(application).
 
--export([start/0, stop/0, request/4, request/5, request/6, request/9]).
+-export([start/0, stop/0, request/1, request/2, request/4, request/5, request/6, request/9]).
 -export([start/2, stop/1]).
 -export([
         send_body_part/2,
@@ -97,6 +97,98 @@ start() ->
 stop() ->
     application:stop(lhttpc).
 
+
+%% @spec (URL) -> Result
+%%   URL = string()
+%% @doc Sends a request without a body. Uses HTTP GET method.
+%% Would be the same as calling `request(URL, "GET", [], [], infinity)',
+%% that is {@link request/5} with an empty body (`Body' could also be `<<>>').
+%% @end
+%% @see request/9
+-spec request(string()) -> result().
+request(URL) ->
+    request(URL, "GET",[], [], infinity, []).
+
+
+%% @spec (URL, Options) -> Result
+%%   URL = string()
+%%   Options = [Option]
+%%   Option = {connect_timeout, Milliseconds | infinity} |
+%%            {connect_options, [ConnectOptions]} |
+%%            {send_retry, integer()} |
+%%            {partial_upload, WindowSize} |
+%%            {partial_download, PartialDownloadOptions} |
+%%            {proxy_host, ProxyHost} |
+%%            {proxy_port, ProxyPort} |
+%%            {ignore_proxy, IgnoreProxyList} |
+%%            {absolute_uri, AbsoluteUri} |
+%%            {proxy_auth, ProxyAuth} |
+%%            {method, Method} |
+%%            {headers, Headers} |
+%%            {body, Body} |
+%%            {timeout, Timeout}
+%%   Milliseconds = integer()
+%%   WindowSize = integer()
+%%   PartialDownloadOptions = [PartialDownloadOption]
+%%   PartialDowloadOption = {window_size, WindowSize} |
+%%                          {part_size, PartSize}
+%%   PartSize = integer() | infinity
+%%   Result = {ok, {{StatusCode, ReasonPhrase}, Hdrs, ResponseBody}}
+%%          | {error, Reason}
+%%   StatusCode = integer()
+%%   ReasonPhrase = string()
+%%   ResponseBody = binary() | pid() | undefined
+%%   ProxyHost = string()
+%%   ProxyPort = integer()
+%%   IgnoreProxyList = [IgnoreProxy]
+%%   IgnoreProxy = {ProxyHost, ProxyPort}
+%%   AbsoluteUri = string()
+%%   ProxyAuth = {User, Pass}
+%%   User = string()
+%%   Pass = sting()
+%%   Timeout = integer() | infinity
+%%   Hdrs = [{Header, Value}]
+%%   Header = string() | binary() | atom()
+%%   Method = string() | atom()
+%%
+%% @doc By default sends a request without a body and uses HTTP GET method. Enables using 
+%% simple API to send request configuration via Options. Useful when there is one 
+%% gateway in a system which executs many diverse requests. More convinient than building Body
+%% and available in request/2 not in request/6. 
+%% Would be the same as calling `request(URL, "GET", [], <<>>, infinity, Options)',
+%% that is {@link request/6}.
+%% @end
+%% @see request/9
+-spec request(string(), list()) -> result().
+request(URL, Options) ->
+    request(URL, 
+	    case proplists:get_value(method, Options) of
+		undefined ->
+		    "GET";
+		Meth ->
+		    Meth
+	    end, 
+	    case proplists:get_value(headers, Options) of
+		undefined ->
+		    [];
+		Hdr ->
+		    Hdr
+	    end, 
+	    case proplists:get_value(body, Options) of
+		undefined ->
+		    <<>>;
+		Bd ->
+		    Bd
+	    end, 
+	    case proplists:get_value(timeout, Options) of
+		undefined ->
+		    infinity;
+		Tm ->
+		    Tm
+	    end, 
+	    Options).
+
+
 %% @spec (URL, Method, Hdrs, Timeout) -> Result
 %%   URL = string()
 %%   Method = string() | atom()
@@ -152,25 +244,6 @@ request(URL, Method, Hdrs, Body, Timeout) ->
 %%   Header = string() | binary() | atom()
 %%   Value = string() | binary()
 %%   RequestBody = iolist()
-%%   Timeout = integer() | infinity
-%%   Options = [Option]
-%%   Option = {connect_timeout, Milliseconds | infinity} |
-%%            {connect_options, [ConnectOptions]} |
-%%            {send_retry, integer()} |
-%%            {partial_upload, WindowSize} |
-%%            {partial_download, PartialDownloadOptions}
-%%   Milliseconds = integer()
-%%   ConnectOptions = term()
-%%   WindowSize = integer() | infinity
-%%   PartialDownloadOptions = [PartialDownloadOption]
-%%   PartialDowloadOption = {window_size, WindowSize} |
-%%                          {part_size, PartSize}
-%%   PartSize = integer() | infinity
-%%   Result = {ok, {{StatusCode, ReasonPhrase}, Hdrs, ResponseBody}} |
-%%            {ok, UploadState} | {error, Reason}
-%%   StatusCode = integer()
-%%   ReasonPhrase = string()
-%%   ResponseBody = binary()
 %%   Reason = connection_closed | connect_timeout | timeout
 %% @doc Sends a request with a body.
 %% Would be the same as calling <pre>
@@ -206,7 +279,12 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %%            {connect_options, [ConnectOptions]} |
 %%            {send_retry, integer()} |
 %%            {partial_upload, WindowSize} |
-%%            {partial_download, PartialDownloadOptions}
+%%            {partial_download, PartialDownloadOptions} |
+%%            {proxy_host, ProxyHost} |
+%%            {proxy_port, ProxyPort} |
+%%            {ignore_proxy, IgnoreProxyList} |
+%%            {absolute_uri, AbsoluteUri} |
+%%            {proxy_auth, ProxyAuth}
 %%   Milliseconds = integer()
 %%   WindowSize = integer()
 %%   PartialDownloadOptions = [PartialDownloadOption]
@@ -218,6 +296,14 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %%   StatusCode = integer()
 %%   ReasonPhrase = string()
 %%   ResponseBody = binary() | pid() | undefined
+%%   ProxyHost = string()
+%%   ProxyPort = integer()
+%%   IgnoreProxyList = [IgnoreProxy]
+%%   IgnoreProxy = {ProxyHost, ProxyPort}
+%%   AbsoluteUri = string()
+%%   ProxyAuth = {User, Pass}
+%%   User = string()
+%%   Pass = sting()
 %%   Reason = connection_closed | connect_timeout | timeout
 %% @doc Sends a request with a body.
 %%
@@ -585,6 +671,14 @@ verify_options([{ignore_proxy, AddrList} | Options], Errors)
         when is_list(AddrList) ->
     verify_options(Options, Errors);
 verify_options([{absolute_uri, _} | Options], Errors) ->
+    verify_options(Options, Errors);
+verify_options([{method, _} | Options], Errors) ->
+    verify_options(Options, Errors);
+verify_options([{headers, _} | Options], Errors) ->
+    verify_options(Options, Errors);
+verify_options([{body, _} | Options], Errors) ->
+    verify_options(Options, Errors);
+verify_options([{timeout, _} | Options], Errors) ->
     verify_options(Options, Errors);
 verify_options([Option | Options], Errors) ->
     verify_options(Options, [Option | Errors]);

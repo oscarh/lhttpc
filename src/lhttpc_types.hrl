@@ -41,7 +41,11 @@
         {proxy_host, string()} |
         {proxy_port, integer()} |
         {absolute_uri, string()} |
-        {ignore_proxy, [string()]}.
+        {ignore_proxy, [string()] | 
+	{timeout, timeout()} |
+	{body, list() | binary()} |
+	{method, string() | atom()} |
+        {headers, list()}}.
 
 -type options() :: [option()].
 
