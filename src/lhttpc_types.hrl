@@ -45,7 +45,8 @@
 	{timeout, timeout()} |
 	{body, list() | binary()} |
 	{method, string() | atom()} |
-        {headers, list()}}.
+        {headers, list()} | 
+	{auth, {string(),string()}}}.
 
 -type options() :: [option()].
 

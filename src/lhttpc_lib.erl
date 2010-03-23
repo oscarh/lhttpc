@@ -187,6 +187,14 @@ normalize_method(Method) ->
 format_hdrs(Headers) ->
     format_hdrs(Headers, []).
 
+%% INFO: clause for case like "Authorization: Basic QWRtaW46Zm9vYmFy"
+format_hdrs([{Hdr, {SubVal1, SubVal2}} | T], Acc) ->
+    NewAcc = [
+	      maybe_atom_to_list(Hdr), ": ",
+	      maybe_atom_to_list(SubVal1), " ",
+	      maybe_atom_to_list(SubVal2), "\r\n" | Acc
+	     ],
+    format_hdrs(T, NewAcc);
 format_hdrs([{Hdr, Value} | T], Acc) ->
     NewAcc = [
         maybe_atom_to_list(Hdr), ":", maybe_atom_to_list(Value), "\r\n" | Acc
@@ -215,7 +223,20 @@ add_mandatory_hdrs(Method, Hdrs, Host, Port, Body, PartialUpload) ->
 add_optional_hdrs(Hdrs, []) ->
     Hdrs;
 add_optional_hdrs(Hdrs, Options) ->
-    add_proxy_auth(Hdrs, proplists:get_value(proxy_auth, Options)).
+    add_auth(add_proxy_auth(Hdrs, 
+			    proplists:get_value(proxy_auth, Options)),
+	     proplists:get_value(auth, Options)).
+
+add_auth(Hdrs, undefined) ->
+    Hdrs;
+add_auth(Hdrs, {User,Pass}) ->
+    case header_value("authorization", Hdrs) of
+        undefined ->
+            Auth = base64:encode_to_string(User ++ ":" ++ Pass),
+            [{"Authorization", {"Basic", Auth}} | Hdrs];
+        _ ->
+            Hdrs
+    end.
 
 add_proxy_auth(Hdrs, undefined) ->
     Hdrs;

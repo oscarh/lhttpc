@@ -122,11 +122,12 @@ request(URL) ->
 %%            {proxy_port, ProxyPort} |
 %%            {ignore_proxy, IgnoreProxyList} |
 %%            {absolute_uri, AbsoluteUri} |
-%%            {proxy_auth, ProxyAuth} |
+%%            {proxy_auth, Auth} |
 %%            {method, Method} |
 %%            {headers, Headers} |
 %%            {body, Body} |
-%%            {timeout, Timeout}
+%%            {timeout, Timeout} |
+%%            {auth, Auth}
 %%   Milliseconds = integer()
 %%   WindowSize = integer()
 %%   PartialDownloadOptions = [PartialDownloadOption]
@@ -143,7 +144,7 @@ request(URL) ->
 %%   IgnoreProxyList = [IgnoreProxy]
 %%   IgnoreProxy = {ProxyHost, ProxyPort}
 %%   AbsoluteUri = string()
-%%   ProxyAuth = {User, Pass}
+%%   Auth = {User, Pass}
 %%   User = string()
 %%   Pass = sting()
 %%   Timeout = integer() | infinity
@@ -284,7 +285,8 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %%            {proxy_port, ProxyPort} |
 %%            {ignore_proxy, IgnoreProxyList} |
 %%            {absolute_uri, AbsoluteUri} |
-%%            {proxy_auth, ProxyAuth}
+%%            {proxy_auth, Auth} |
+%%            {auth, Auth}
 %%   Milliseconds = integer()
 %%   WindowSize = integer()
 %%   PartialDownloadOptions = [PartialDownloadOption]
@@ -301,7 +303,7 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %%   IgnoreProxyList = [IgnoreProxy]
 %%   IgnoreProxy = {ProxyHost, ProxyPort}
 %%   AbsoluteUri = string()
-%%   ProxyAuth = {User, Pass}
+%%   Auth = {User, Pass}
 %%   User = string()
 %%   Pass = sting()
 %%   Reason = connection_closed | connect_timeout | timeout
@@ -659,6 +661,9 @@ verify_options([{connect_options, List} | Options], Errors)
         when is_list(List) ->
     verify_options(Options, Errors);
 verify_options([{proxy_auth, {User, Pass}} | Options], Errors)
+        when is_list(User), is_list(Pass) ->
+    verify_options(Options, Errors);
+verify_options([{auth, {User, Pass}} | Options], Errors)
         when is_list(User), is_list(Pass) ->
     verify_options(Options, Errors);
 verify_options([{proxy_host, Host} | Options], Errors)
