@@ -61,7 +61,7 @@ util/%.beam: util/%.erl
 
 clean:
 	@echo Cleaning
-	@rm -f ebin/*.{beam,app} test/*.beam doc/*.{html,css,png} doc/edoc-info
+	@rm -f ebin/*.beam ebin/*.app test/*.beam doc/*.html doc/*.css doc/*.png doc/edoc-info
 	@rm -rf cover_report
 	@rm -f util/*.beam
 
