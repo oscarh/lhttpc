@@ -553,6 +553,11 @@ verify_options([{partial_download, DownloadOptions} | Options], Errors)
             NewErrors = [{partial_download, OptionErrors} | Errors],
             verify_options(Options, NewErrors)
     end;
+verify_options([drop_response_body | Options], Errors) ->
+    verify_options(Options, Errors);
+verify_options([{drop_response_body, Bool} | Options], Errors)
+        when is_boolean(Bool) ->
+    verify_options(Options, Errors);
 verify_options([{connect_options, List} | Options], Errors)
         when is_list(List) ->
     verify_options(Options, Errors);
