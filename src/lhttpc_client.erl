@@ -64,7 +64,7 @@
 -define(CONNECTION_HDR(HDRS, DEFAULT),
     string:to_lower(lhttpc_lib:header_value("connection", HDRS, DEFAULT))).
 
--define(READ_WHEN_DROPPING, 4096).
+-define(DROP_BLOCK_SIZE, 4096).
 
 -spec request(pid(), string(), 1..65535, true | false, string(),
         string() | atom(), headers(), iolist(), [option()]) -> no_return().
@@ -103,7 +103,6 @@ request(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
 execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
     UploadWindowSize = proplists:get_value(partial_upload, Options),
     PartialUpload = proplists:is_defined(partial_upload, Options),
-    Drop_Response_Body = proplists:get_bool(drop_response_body, Options),
     PartialDownload = proplists:is_defined(partial_download, Options),
     PartialDownloadOptions = proplists:get_value(partial_download, Options, []),
     NormalizedMethod = lhttpc_lib:normalize_method(Method),
@@ -135,7 +134,7 @@ execute(From, Host, Port, Ssl, Path, Method, Hdrs, Body, Options) ->
             PartialDownloadOptions, infinity),
         part_size = proplists:get_value(part_size,
             PartialDownloadOptions, infinity),
-        drop_response_body = Drop_Response_Body
+        drop_response_body = proplists:get_bool(drop_response_body, Options)
     },
     Response = case send_request(State) of
         {R, undefined} ->
@@ -296,9 +295,9 @@ read_response(State, Vsn, {StatusCode, _} = Status, Hdrs) ->
             erlang:error(Reason)
     end.
 
-handle_response_body(#client_state{partial_download = false,
-        drop_response_body = Drop} = State, Vsn,
+handle_response_body(#client_state{partial_download = false} = State, Vsn,
         Status, Hdrs) ->
+    Drop = State#client_state.drop_response_body,
     Socket = State#client_state.socket,
     Ssl = State#client_state.ssl,
     Method = State#client_state.method,
@@ -445,14 +444,13 @@ read_length(Hdrs, Ssl, Socket, Length, true) when Length > 0 ->
     % The caller isn't insterested in the body, but we must read it
     % from the socket anyway. We read by small chunk of data to avoid
     % increasing process memory footprint.
-    Block = ?READ_WHEN_DROPPING,
-    Read_Length = if
-        Length < Block -> Length;
-        true           -> Block
+    ReadLength = if
+        Length <  ?DROP_BLOCK_SIZE -> Length;
+        Length >= ?DROP_BLOCK_SIZE -> ?DROP_BLOCK_SIZE
     end,
-    case lhttpc_sock:recv(Socket, Read_Length, Ssl) of
+    case lhttpc_sock:recv(Socket, ReadLength, Ssl) of
         {ok, _} ->
-            read_length(Hdrs, Ssl, Socket, Length - Read_Length, true);
+            read_length(Hdrs, Ssl, Socket, Length - ReadLength, true);
         {error, Reason} ->
             erlang:error(Reason)
     end;
@@ -576,9 +574,8 @@ read_chunk(Socket, Ssl, Size, false) ->
     end;
 read_chunk(Socket, Ssl, Size, true) ->
     lhttpc_sock:setopts(Socket, [{packet, raw}], Ssl),
-    Block = ?READ_WHEN_DROPPING,
     if
-        Size =< Block ->
+        Size =< ?DROP_BLOCK_SIZE ->
             case lhttpc_sock:recv(Socket, Size + 2, Ssl) of
                 {ok, <<Chunk:Size/binary, "\r\n">>} ->
                     Chunk;
@@ -588,9 +585,9 @@ read_chunk(Socket, Ssl, Size, true) ->
                     erlang:error(Reason)
             end;
         true ->
-            case lhttpc_sock:recv(Socket, Block, Ssl) of
+            case lhttpc_sock:recv(Socket, ?DROP_BLOCK_SIZE, Ssl) of
                 {ok, _} ->
-                    read_chunk(Socket, Ssl, Size - Block, true);
+                    read_chunk(Socket, Ssl, Size - ?DROP_BLOCK_SIZE, true);
                 {error, Reason} ->
                     erlang:error(Reason)
             end
@@ -663,10 +660,10 @@ read_infinite_body(Socket, Hdrs, Ssl, Drop) ->
 
 read_until_closed(Socket, Acc, Hdrs, Ssl, Drop) ->
     case lhttpc_sock:recv(Socket, Ssl) of
-        {ok, Body} when Drop == false ->
+        {ok, Body} when Drop =:= false ->
             NewAcc = <<Acc/binary, Body/binary>>,
             read_until_closed(Socket, NewAcc, Hdrs, Ssl, Drop);
-        {ok, _} when Drop == true ->
+        {ok, _} when Drop =:= true ->
             read_until_closed(Socket, Acc, Hdrs, Ssl, Drop);
         {error, closed} ->
             {Acc, Hdrs};
