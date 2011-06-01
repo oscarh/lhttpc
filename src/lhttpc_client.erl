@@ -30,8 +30,6 @@
 %%% This module implements the HTTP request handling. This should normally
 %%% not be called directly since it should be spawned by the lhttpc module.
 %%% @end
-%%% @type boolean() = bool().
-%%% @type iolist() = [] | binary() | [char() | binary() | iolist()].
 -module(lhttpc_client).
 
 -export([request/9]).
@@ -408,7 +406,7 @@ read_body_part(#client_state{part_size = infinity} = State, _ContentLength) ->
     end;
 read_body_part(#client_state{part_size = PartSize} = State, ContentLength)
         when PartSize =< ContentLength ->
-    Socket = State#client_state.socket, 
+    Socket = State#client_state.socket,
     Ssl = State#client_state.ssl,
     PartSize = State#client_state.part_size,
     case lhttpc_sock:recv(Socket, PartSize, Ssl) of
@@ -419,7 +417,7 @@ read_body_part(#client_state{part_size = PartSize} = State, ContentLength)
     end;
 read_body_part(#client_state{part_size = PartSize} = State, ContentLength)
         when PartSize > ContentLength ->
-    Socket = State#client_state.socket, 
+    Socket = State#client_state.socket,
     Ssl = State#client_state.ssl,
     case lhttpc_sock:recv(Socket, ContentLength, Ssl) of
         {ok, Data} ->

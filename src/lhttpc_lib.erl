@@ -1,7 +1,7 @@
 %%% ----------------------------------------------------------------------------
 %%% Copyright (c) 2009, Erlang Training and Consulting Ltd.
 %%% All rights reserved.
-%%% 
+%%%
 %%% Redistribution and use in source and binary forms, with or without
 %%% modification, are permitted provided that the following conditions are met:
 %%%    * Redistributions of source code must retain the above copyright
@@ -12,7 +12,7 @@
 %%%    * Neither the name of Erlang Training and Consulting Ltd. nor the
 %%%      names of its contributors may be used to endorse or promote products
 %%%      derived from this software without specific prior written permission.
-%%% 
+%%%
 %%% THIS SOFTWARE IS PROVIDED BY Erlang Training and Consulting Ltd. ''AS IS''
 %%% AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 %%% IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -29,8 +29,6 @@
 %%% @doc
 %%% This module implements various library functions used in lhttpc.
 %%% @end
-%%% @type boolean() = boolean().
-%%% @type iolist() = [] | binary() | [char() | binary() | iolist()].
 -module(lhttpc_lib).
 
 -export([
@@ -199,7 +197,7 @@ format_body(Body, true) ->
     end.
 
 add_mandatory_hdrs(Method, Hdrs, Host, Port, Body, PartialUpload) ->
-    ContentHdrs = add_content_headers(Method, Hdrs, Body, PartialUpload),  
+    ContentHdrs = add_content_headers(Method, Hdrs, Body, PartialUpload),
     add_host(ContentHdrs, Host, Port).
 
 add_content_headers("POST", Hdrs, Body, PartialUpload) ->
@@ -218,7 +216,7 @@ add_content_headers(Hdrs, Body, false) ->
             Hdrs
     end;
 add_content_headers(Hdrs, _Body, true) ->
-    case {header_value("content-length", Hdrs), 
+    case {header_value("content-length", Hdrs),
          header_value("transfer-encoding", Hdrs)} of
         {undefined, undefined} ->
             [{"Transfer-Encoding", "chunked"} | Hdrs];
@@ -229,7 +227,7 @@ add_content_headers(Hdrs, _Body, true) ->
             end;
         {_Length, undefined} ->
             Hdrs;
-        {_Length, _TransferEncoding} -> %% have both cont.length and chunked 
+        {_Length, _TransferEncoding} -> %% have both cont.length and chunked
             erlang:error({error, bad_header})
     end.
 
