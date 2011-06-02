@@ -1,7 +1,7 @@
 %%% ----------------------------------------------------------------------------
 %%% Copyright (c) 2009, Erlang Training and Consulting Ltd.
 %%% All rights reserved.
-%%% 
+%%%
 %%% Redistribution and use in source and binary forms, with or without
 %%% modification, are permitted provided that the following conditions are met:
 %%%    * Redistributions of source code must retain the above copyright
@@ -12,7 +12,7 @@
 %%%    * Neither the name of Erlang Training and Consulting Ltd. nor the
 %%%      names of its contributors may be used to endorse or promote products
 %%%      derived from this software without specific prior written permission.
-%%% 
+%%%
 %%% THIS SOFTWARE IS PROVIDED BY Erlang Training and Consulting Ltd. ''AS IS''
 %%% AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 %%% IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -28,8 +28,6 @@
 %%% @doc Main interface to the lightweight http client.
 %%% See {@link request/4}, {@link request/5} and {@link request/6} functions.
 %%% @end
-%%% @type boolean() = bool().
-%%% @type iolist() = [] | binary() | [char() | binary() | iolist()].
 -module(lhttpc).
 -behaviour(application).
 
@@ -37,7 +35,7 @@
 -export([start/2, stop/1]).
 -export([
         send_body_part/2,
-        send_body_part/3, 
+        send_body_part/3,
         send_trailers/2,
         send_trailers/3
     ]).
@@ -178,7 +176,7 @@ request(URL, Method, Hdrs, Body, Timeout) ->
 %% request(Host, Port, Path, Ssl, Method, Hdrs, Body, Timeout, Options).
 %% </pre>
 %%
-%% `URL' is expected to be a valid URL: 
+%% `URL' is expected to be a valid URL:
 %% `scheme://host[:port][/path]'.
 %% @end
 %% @see request/9
@@ -229,13 +227,13 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %% `Ssl' = `false'<br/>
 %% `Path' = `"/foobar"'<br/>
 %% `Path' must begin with a forward slash `/'.
-%% 
+%%
 %% `Method' is either a string, stating the HTTP method exactly as in the
 %% protocol, i.e: `"POST"' or `"GET"'. It could also be an atom, which is
 %% then coverted to an uppercase (if it isn't already) string.
 %%
 %% `Hdrs' is a list of headers to send. Mandatory headers such as
-%% `Host', `Content-Length' or `Transfer-Encoding' (for some requests) 
+%% `Host', `Content-Length' or `Transfer-Encoding' (for some requests)
 %% are added automatically.
 %%
 %% `Body' is the entity to send in the request. Please don't include entity
@@ -254,7 +252,7 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %% choose to give up earlier than the connect timeout, in which case the
 %% client will also give up. The default value is infinity, which means that
 %% it will either give up when the TCP stack gives up, or when the overall
-%% request timeout is reached. 
+%% request timeout is reached.
 %%
 %% `{connect_options, Options}' specifies options to pass to the socket at
 %% connect time. This makes it possible to specify both SSL options and
@@ -311,7 +309,7 @@ request(URL, Method, Hdrs, Body, Timeout, Options) ->
 %% pieces. Note however that the last piece might be smaller than `PartSize'.
 %% Size bounded entity bodies are handled the same way as unbounded ones if
 %% `PartSize' is `infinity'. If `PartSize' is integer it must be >= 0.
-%% If `{partial_download, PartialDownloadOptions}' is specified the 
+%% If `{partial_download, PartialDownloadOptions}' is specified the
 %% `ResponseBody' will be a `pid()' unless the response has no body
 %% (for example in case of `HEAD' requests). In that case it will be be
 %% `undefined'. The functions {@link get_body_part/1} and
@@ -353,7 +351,7 @@ request(Host, Port, Ssl, Path, Method, Hdrs, Body, Timeout, Options) ->
 %% Would be the same as calling
 %% `send_body_part(UploadState, BodyPart, infinity)'.
 %% @end
--spec send_body_part({pid(), window_size()}, iolist()) -> 
+-spec send_body_part({pid(), window_size()}, iolist()) ->
         {pid(), window_size()} | result().
 send_body_part({Pid, Window}, IoList) ->
     send_body_part({Pid, Window}, IoList, infinity).
@@ -371,15 +369,15 @@ send_body_part({Pid, Window}, IoList) ->
 %% milliseconds. If there is no acknowledgement received during that time the
 %% the request is cancelled and `{error, timeout}' is returned.
 %%
-%% As long as the window size is larger than 0 the function will return 
+%% As long as the window size is larger than 0 the function will return
 %% immediately after sending the body part to the request handling process.
-%% 
+%%
 %% The `BodyPart' `http_eob' signals an end of the entity body, the request
 %% is considered sent and the response will be read from the socket. If
 %% there is no response within `Timeout' milliseconds, the request is
 %% canceled and `{error, timeout}' is returned.
 %% @end
--spec send_body_part({pid(), window_size()}, iolist(), timeout()) -> 
+-spec send_body_part({pid(), window_size()}, iolist(), timeout()) ->
         {ok, {pid(), window_size()}} | result().
 send_body_part({Pid, _Window}, http_eob, Timeout) when is_pid(Pid) ->
     Pid ! {body_part, self(), http_eob},
@@ -422,7 +420,7 @@ send_body_part({Pid, Window}, IoList, _Timeout) when Window > 0, is_pid(Pid) ->
 %% @doc Sends trailers to an ongoing request when `{partial_upload,
 %% WindowSize}' is used and no `Content-Length' was specified. The default
 %% timout `infinity' will be used. Plase note that after this the request is
-%% considered complete and the response will be read from the socket. 
+%% considered complete and the response will be read from the socket.
 %% Would be the same as calling
 %% `send_trailers(UploadState, BodyPart, infinity)'.
 %% @end
@@ -450,7 +448,7 @@ send_trailers({Pid, Window}, Trailers) ->
 %% `Timeout' milliseconds the request is canceled and `{error, timeout}' is
 %% returned.
 %% @end
--spec send_trailers({pid(), window_size()}, [{string() | string()}], 
+-spec send_trailers({pid(), window_size()}, [{string() | string()}],
         timeout()) -> result().
 send_trailers({Pid, _Window}, Trailers, Timeout)
         when is_list(Trailers), is_pid(Pid) ->
@@ -465,7 +463,7 @@ send_trailers({Pid, _Window}, Trailers, Timeout)
 %%   Value = string() | binary()
 %% @doc Reads a body part from an ongoing response when
 %% `{partial_download, PartialDownloadOptions}' is used. The default timeout,
-%% `infinity' will be used. 
+%% `infinity' will be used.
 %% Would be the same as calling
 %% `get_body_part(HTTPClient, infinity)'.
 %% @end
@@ -482,11 +480,11 @@ get_body_part(Pid) ->
 %%   Value = string() | binary()
 %% @doc Reads a body part from an ongoing response when
 %% `{partial_download, PartialDownloadOptions}' is used.
-%% `Timeout' is the timeout for reading the next body part in milliseconds. 
+%% `Timeout' is the timeout for reading the next body part in milliseconds.
 %% `http_eob' marks the end of the body. If there were Trailers in the
-%% response those are returned with `http_eob' as well. 
+%% response those are returned with `http_eob' as well.
 %% @end
--spec get_body_part(pid(), timeout()) -> 
+-spec get_body_part(pid(), timeout()) ->
         {ok, binary()} | {ok, {http_eob, headers()}}.
 get_body_part(Pid, Timeout) ->
     receive
