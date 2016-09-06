@@ -272,6 +272,10 @@ read_response(State, Vsn, {StatusCode, _} = Status, Hdrs) ->
             ReqHdrs = State#client_state.request_headers,
             NewSocket = maybe_close_socket(Socket, Ssl, Vsn, ReqHdrs, NewHdrs),
             {Response, NewSocket};
+        {ok, {http_error, _HttpString}} ->
+            % gen_tcp:recv() returns HttpError: http://www.erlang.org/doc/man/erlang.html#decode_packet-3
+            % XXX: not sure what the best action is, ignoring it works for me(!)
+            read_response(State, Vsn, Status, Hdrs);
         {error, closed} ->
             % Either we only noticed that the socket was closed after we
             % sent the request, the server closed it just after we put
